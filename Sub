@@ -2871,7 +2871,7 @@ local script = G2L["6d"];
 	local origColor   = stroke and stroke.Color or Color3.new(1,1,1)
 	local green       = Color3.new(0,1,0)
 	
-	-- reference the Submit button’s stroke
+	-- reference the Submit button’s stroke for key-check
 	local screenGui     = script:FindFirstAncestorOfClass("ScreenGui")
 	local submitStroke  = screenGui
 		:WaitForChild("sigma")
@@ -2884,7 +2884,6 @@ local script = G2L["6d"];
 	local firing         = false
 	local rapidFireDelay = 0.003  -- super fast
 	
-	-- helper
 	local function notify(txt)
 		StarterGui:SetCore("SendNotification", {
 			Title    = "OmarXwiet",
@@ -2893,7 +2892,7 @@ local script = G2L["6d"];
 		})
 	end
 	
-	-- toggle on click
+	-- Toggle rapid-fire on/off
 	button.MouseButton1Click:Connect(function()
 		if not (submitStroke and submitStroke.Color == green) then
 			return notify("You need to enter the key in Keysystem")
@@ -2905,34 +2904,38 @@ local script = G2L["6d"];
 		end
 	end)
 	
-	-- detect hold on the GUI button itself (works on PC & mobile)
-	button.InputBegan:Connect(function(input)
-		if not enabled then return end
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
-			firing = true
+	-- PC: hold left mouse anywhere; Mobile: hold screen anywhere
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if enabled and not processed then
+			local t = input.UserInputType
+			if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
+				firing = true
+			end
 		end
 	end)
-	button.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
+	
+	UserInputService.InputEnded:Connect(function(input, processed)
+		local t = input.UserInputType
+		if (t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch) then
 			firing = false
 		end
 	end)
 	
-	-- main rapid-fire loop
+	-- Main loop
 	task.spawn(function()
 		while true do
 			if enabled and firing then
+				-- recalc character & right arm
 				local char     = player.Character or player.CharacterAdded:Wait()
 				local rightArm = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
 				if rightArm then
-					local mouse      = player:GetMouse()
-					local startP     = rightArm.Position
-					local endP       = mouse.Hit.Position
-					local dir        = (endP - startP).Unit
-					local cf1        = CFrame.lookAt(startP, startP + dir)
-					local cf2        = CFrame.lookAt(endP,   endP   + dir)
+					-- aim toward mouse.Hit on both PC & mobile
+					local mouse    = player:GetMouse()
+					local startP   = rightArm.Position
+					local endP     = mouse.Hit.Position
+					local dir      = (endP - startP).Unit
+					local cf1      = CFrame.lookAt(startP, startP + dir)
+					local cf2      = CFrame.lookAt(endP,   endP   + dir)
 					shootRemote:FireServer(cf1, cf2)
 				end
 				task.wait(rapidFireDelay)
