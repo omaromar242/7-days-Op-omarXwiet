@@ -2874,9 +2874,9 @@ local script = G2L["6d"];
 	local origColor   = stroke and stroke.Color or Color3.new(1,1,1)
 	local green       = Color3.new(0,1,0)
 	
-	-- Submit key‐check
-	local screenGui     = script:FindFirstAncestorOfClass("ScreenGui")
-	local submitStroke  = screenGui
+	-- reference the Submit button’s stroke for key-check
+	local screenGui    = script:FindFirstAncestorOfClass("ScreenGui")
+	local submitStroke = screenGui
 		:WaitForChild("sigma")
 		:WaitForChild("KeyFrame")
 		:WaitForChild("Keyframe")
@@ -2885,42 +2885,43 @@ local script = G2L["6d"];
 	
 	local enabled        = false
 	local firing         = false
-	local lastInputIsTouch = false
+	local lastInputIsTouch= false
 	local rapidFireDelay = 0.003
+	
+	local mouse = player:GetMouse()
 	
 	local function notify(txt)
 		StarterGui:SetCore("SendNotification", {
-			Title    = "OmarXwiet";
-			Text     = txt;
-			Duration = 2;
+			Title    = "OmarXwiet",
+			Text     = txt,
+			Duration = 2,
 		})
 	end
 	
-	-- toggle on/off
+	-- Toggle on/off
 	button.MouseButton1Click:Connect(function()
 		if not (submitStroke and submitStroke.Color == green) then
 			return notify("You need to enter the key in Keysystem")
 		end
 		enabled = not enabled
 		firing = false
-		if stroke then
-			stroke.Color = enabled and green or origColor
-		end
+		if stroke then stroke.Color = enabled and green or origColor end
 	end)
 	
-	-- detect hold begin
+	-- Detect hold begin (PC & mobile)
 	UserInputService.InputBegan:Connect(function(input, processed)
-		if not enabled or processed then return end
-		local t = input.UserInputType
-		if t == Enum.UserInputType.MouseButton1 then
-			firing = true
-			lastInputIsTouch = false
-		elseif t == Enum.UserInputType.Touch then
-			firing = true
-			lastInputIsTouch = true
+		if enabled and not processed then
+			local t = input.UserInputType
+			if t == Enum.UserInputType.MouseButton1 then
+				firing = true
+				lastInputIsTouch = false
+			elseif t == Enum.UserInputType.Touch then
+				firing = true
+				lastInputIsTouch = true
+			end
 		end
 	end)
-	-- detect hold end
+	-- Detect hold end
 	UserInputService.InputEnded:Connect(function(input)
 		local t = input.UserInputType
 		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
@@ -2928,30 +2929,32 @@ local script = G2L["6d"];
 		end
 	end)
 	
-	-- rapid‐fire loop
+	-- Main rapid-fire loop
 	RunService.RenderStepped:Connect(function()
 		if enabled and firing then
 			local char     = player.Character or player.CharacterAdded:Wait()
 			local rightArm = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
-			if rightArm then
-				local startP = rightArm.Position
-				local dir, endP
+			if not rightArm then return end
 	
-				if lastInputIsTouch then
-					-- mobile: shoot straight ahead from camera
-					dir  = camera.CFrame.LookVector
-					endP = camera.CFrame.Position + dir * 1000
-				else
-					-- PC: aim at mouse.Hit
-					local m    = player:GetMouse()
-					endP      = m.Hit.Position
-					dir       = (endP - startP).Unit
-				end
+			local startP = rightArm.Position
+			local dir, endP
 	
-				local cf1 = CFrame.lookAt(startP, startP + dir)
-				local cf2 = CFrame.lookAt(endP,   endP   + dir)
-				shootRemote:FireServer(cf1, cf2)
+			if lastInputIsTouch then
+				-- Mobile: shoot forward from camera view
+				dir  = camera.CFrame.LookVector
+				endP = camera.CFrame.Position + dir * 1000
+			else
+				-- PC: use mouse.X/Y to raycast through cursor
+				local mx, my = mouse.X, mouse.Y
+				local ray = camera:ScreenPointToRay(mx, my)
+				dir  = ray.Direction
+				endP = ray.Origin + ray.Direction * 1000
 			end
+	
+			local cf1 = CFrame.lookAt(startP, startP + dir)
+			local cf2 = CFrame.lookAt(endP,   endP   + dir)
+			shootRemote:FireServer(cf1, cf2)
+	
 			task.wait(rapidFireDelay)
 		end
 	end)
