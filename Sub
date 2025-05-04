@@ -2869,12 +2869,12 @@ local script = G2L["6d"];
 	local shootRemote = remotes:WaitForChild("shoot")
 	local camera      = Workspace.CurrentCamera
 	
-	local button     = script.Parent
-	local stroke     = button:FindFirstChildWhichIsA("UIStroke")
-	local origColor  = stroke and stroke.Color or Color3.new(1,1,1)
-	local green      = Color3.new(0,1,0)
+	local button      = script.Parent
+	local stroke      = button:FindFirstChildWhichIsA("UIStroke")
+	local origColor   = stroke and stroke.Color or Color3.new(1,1,1)
+	local green       = Color3.new(0,1,0)
 	
-	-- reference the Submit button’s stroke for key-check
+	-- Submit key‐check
 	local screenGui     = script:FindFirstAncestorOfClass("ScreenGui")
 	local submitStroke  = screenGui
 		:WaitForChild("sigma")
@@ -2885,17 +2885,18 @@ local script = G2L["6d"];
 	
 	local enabled        = false
 	local firing         = false
+	local lastInputIsTouch = false
 	local rapidFireDelay = 0.003
 	
 	local function notify(txt)
 		StarterGui:SetCore("SendNotification", {
-			Title    = "OmarXwiet",
-			Text     = txt,
-			Duration = 2,
+			Title    = "OmarXwiet";
+			Text     = txt;
+			Duration = 2;
 		})
 	end
 	
-	-- Toggle on click
+	-- toggle on/off
 	button.MouseButton1Click:Connect(function()
 		if not (submitStroke and submitStroke.Color == green) then
 			return notify("You need to enter the key in Keysystem")
@@ -2907,15 +2908,19 @@ local script = G2L["6d"];
 		end
 	end)
 	
-	-- Handle hold (PC & mobile)
+	-- detect hold begin
 	UserInputService.InputBegan:Connect(function(input, processed)
-		if enabled and not processed then
-			local t = input.UserInputType
-			if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
-				firing = true
-			end
+		if not enabled or processed then return end
+		local t = input.UserInputType
+		if t == Enum.UserInputType.MouseButton1 then
+			firing = true
+			lastInputIsTouch = false
+		elseif t == Enum.UserInputType.Touch then
+			firing = true
+			lastInputIsTouch = true
 		end
 	end)
+	-- detect hold end
 	UserInputService.InputEnded:Connect(function(input)
 		local t = input.UserInputType
 		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
@@ -2923,21 +2928,31 @@ local script = G2L["6d"];
 		end
 	end)
 	
-	-- Rapid-fire loop
+	-- rapid‐fire loop
 	RunService.RenderStepped:Connect(function()
 		if enabled and firing then
 			local char     = player.Character or player.CharacterAdded:Wait()
 			local rightArm = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
-			if rightArm and camera then
-				-- Always fire in the camera's forward direction
+			if rightArm then
 				local startP = rightArm.Position
-				local dir    = camera.CFrame.LookVector
-				local endP   = camera.CFrame.Position + dir * 1000
+				local dir, endP
+	
+				if lastInputIsTouch then
+					-- mobile: shoot straight ahead from camera
+					dir  = camera.CFrame.LookVector
+					endP = camera.CFrame.Position + dir * 1000
+				else
+					-- PC: aim at mouse.Hit
+					local m    = player:GetMouse()
+					endP      = m.Hit.Position
+					dir       = (endP - startP).Unit
+				end
 	
 				local cf1 = CFrame.lookAt(startP, startP + dir)
 				local cf2 = CFrame.lookAt(endP,   endP   + dir)
 				shootRemote:FireServer(cf1, cf2)
 			end
+			task.wait(rapidFireDelay)
 		end
 	end)
 	
@@ -3183,7 +3198,7 @@ local script = G2L["77"];
 	local origColor    = stroke and stroke.Color or Color3.new(1,1,1)
 	local green        = Color3.new(0,1,0)
 	
-	-- reference the Submit button’s stroke
+	-- Submit key‐check
 	local screenGui    = script:FindFirstAncestorOfClass("ScreenGui")
 	local submitStroke = screenGui
 		:WaitForChild("sigma")
@@ -3192,26 +3207,25 @@ local script = G2L["77"];
 		:WaitForChild("submit")
 		:FindFirstChildWhichIsA("UIStroke")
 	
-	-- state
-	local enabled      = false
-	
 	-- settings
 	local rapidFireDelay    = 0.01
 	local flyingHeight      = 20
 	local minimumSafeHeight = 10
-	local maxDistance       = 200    -- ignore spawns beyond this distance
+	local maxDistance       = 200    -- ignore farther targets
 	local tweenInfo         = TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
 	
-	-- folder of targets
-	local scpsFolder = Workspace:WaitForChild("scps")
+	-- references
+	local scpsFolder  = Workspace:WaitForChild("scps")
 	local shootRemote = ReplicatedStorage:WaitForChild("remotes"):WaitForChild("shoot")
 	local player      = Players.LocalPlayer
 	
-	local function notify(text)
+	local enabled = false
+	
+	local function notify(txt)
 		StarterGui:SetCore("SendNotification", {
-			Title    = "OmarXwiet",
-			Text     = text,
-			Duration = 2,
+			Title    = "OmarXwiet";
+			Text     = txt;
+			Duration = 2;
 		})
 	end
 	
@@ -3219,74 +3233,73 @@ local script = G2L["77"];
 		return submitStroke and submitStroke.Color == green
 	end
 	
-	-- find the nearest valid alive SCP within maxDistance
-	local function getFirstTarget(rootPos)
+	-- pick nearest valid target within maxDistance
+	local function getFirstTarget(pos)
 		local closest, minDist = nil, math.huge
 		for _, mdl in ipairs(scpsFolder:GetChildren()) do
 			local hrp = mdl:FindFirstChild("HumanoidRootPart")
 			local hum = mdl:FindFirstChild("Humanoid")
 			if hrp and hum and hum.Health > 0 then
-				local dist = (hrp.Position - rootPos).Magnitude
-				if dist < minDist and dist <= maxDistance then
-					closest, minDist = mdl, dist
+				local d = (hrp.Position - pos).Magnitude
+				if d < minDist and d <= maxDistance then
+					closest, minDist = mdl, d
 				end
 			end
 		end
 		return closest
 	end
 	
-	-- main hunting loop
+	-- main loop
 	local function autoLoop()
-		-- cache home position
+		-- store home position
 		local char0 = player.Character or player.CharacterAdded:Wait()
 		local hrp0  = char0:WaitForChild("HumanoidRootPart")
-		local homeCFrame = hrp0.CFrame
+		local home  = hrp0.CFrame
 	
 		while enabled do
-			local char = player.Character or player.CharacterAdded:Wait()
-			local humanoidRoot = char:FindFirstChild("HumanoidRootPart")
-			local humanoid     = char:FindFirstChild("Humanoid")
-			local rightArm     = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
-			if not (humanoidRoot and humanoid and rightArm) then
-				task.wait(0.1)
-				continue
-			end
+			local char        = player.Character or player.CharacterAdded:Wait()
+			local humanoidRoot= char:FindFirstChild("HumanoidRootPart")
+			local rightArm    = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
+			if humanoidRoot and rightArm then
+				local target = getFirstTarget(humanoidRoot.Position)
+				if target then
+					local targetHRP = target:FindFirstChild("HumanoidRootPart")
+					-- attack loop
+					while enabled 
+						and target.Parent == scpsFolder 
+						and target:FindFirstChild("Humanoid").Health > 0 do
 	
-			-- find nearest target
-			local targetModel = getFirstTarget(humanoidRoot.Position)
-			if not targetModel then
-				break
-			end
+						-- shoot
+						local startP = rightArm.Position
+						local dir    = (targetHRP.Position - startP).Unit
+						local cf1    = CFrame.lookAt(startP, startP + dir)
+						local cf2    = CFrame.lookAt(targetHRP.Position, targetHRP.Position + dir)
+						shootRemote:FireServer(cf1, cf2)
 	
-			local targetHRP = targetModel:FindFirstChild("HumanoidRootPart")
-			-- attack loop
-			while enabled and targetModel.Parent == scpsFolder
-				and targetHRP and targetModel.Humanoid.Health > 0 do
+						-- hover
+						local goal = targetHRP.Position + Vector3.new(0, flyingHeight, 0)
+						if goal.Y < minimumSafeHeight then
+							goal = Vector3.new(goal.X, minimumSafeHeight, goal.Z)
+						end
+						TweenService:Create(humanoidRoot, tweenInfo, {CFrame = CFrame.new(goal)}):Play()
 	
-				-- fire at it
-				local startPos = rightArm.Position
-				local dir      = (targetHRP.Position - startPos).Unit
-				local cf1      = CFrame.lookAt(startPos, startPos + dir)
-				local cf2      = CFrame.lookAt(targetHRP.Position, targetHRP.Position + dir)
-				shootRemote:FireServer(cf1, cf2)
-	
-				-- hover above safely
-				local goalPos = targetHRP.Position + Vector3.new(0, flyingHeight, 0)
-				if goalPos.Y < minimumSafeHeight then
-					goalPos = Vector3.new(goalPos.X, minimumSafeHeight, goalPos.Z)
+						task.wait(rapidFireDelay)
+					end
+				else
+					-- no target: wait then re-check
+					task.wait(0.5)
 				end
-				TweenService:Create(humanoidRoot, tweenInfo, {CFrame = CFrame.new(goalPos)}):Play()
-	
-				task.wait(rapidFireDelay)
+			else
+				task.wait(0.1)
 			end
 		end
 	
 		-- return home
-		if homeCFrame and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+		if home and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
 			TweenService:Create(
 				player.Character.HumanoidRootPart,
 				tweenInfo,
-				{CFrame = homeCFrame}
+				{CFrame = home}
 			):Play()
 		end
 	
@@ -3295,16 +3308,15 @@ local script = G2L["77"];
 		if stroke then stroke.Color = origColor end
 	end
 	
+	-- toggle handler
 	button.MouseButton1Click:Connect(function()
 		if not isKeyEntered() then
 			return notify("You need to enter the key in Keysystem")
 		end
-	
 		enabled = not enabled
 		if stroke then
 			stroke.Color = enabled and green or origColor
 		end
-	
 		if enabled then
 			task.spawn(autoLoop)
 		end
